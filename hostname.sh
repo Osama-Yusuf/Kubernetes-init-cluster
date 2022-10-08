@@ -10,7 +10,11 @@
 read -p "Do you want to provision ec2's (Y/N): " user_name
 
 terra(){
+  # check if terraform is initialized
   cd terraform
+  if [ ! -d ".terraform" ]; then
+      terraform init
+  fi
   terraform plan
   terraform apply -auto-approve
   cd ..
@@ -48,7 +52,7 @@ cat <<EOF | tee hosts.txt
 EOF
 
 clear
-read -p "Please enter the username of all nodes (4 Ex. 'ubuntu'): " user_name
+read -p "Please enter the username of all nodes (for Ex. 'ubuntu'): " user_name
 
 # ---------------------------------------------------------------------------- # k8s_init.sh # ---------------------------------------------------------------------------- #
 
@@ -128,7 +132,7 @@ read -p "Please enter the path to the private key (.pem file): " private_key_pat
 # ------ get the number of nodes then loop through them to get their private ip and hostname ------ #
     # then append them to hosts.txt file
     # then ssh to each node and set their hostname
-read -p "Please enter the number of all your nodes (worker and master ) : " node_number
+read -p "Please enter the number of all your nodes (worker and master) : " node_number
 echo 
 
 # ----------- create a for loop to add all nodes to /etc/hosts file ---------- #

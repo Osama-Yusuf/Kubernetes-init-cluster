@@ -1,1 +1,7 @@
-# Kubernetes-init-cluster
+# Kubernetes init cluster
+
+## Usage
+
+```bash
+bash hostname.sh
+```
