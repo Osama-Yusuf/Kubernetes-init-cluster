@@ -24,6 +24,8 @@ if [ $user_name == "Y" ]; then
   terra
 fi
 
+check_exist(){
+
 # -------------- contains rules for easier execution for ansible ------------- #
 cat <<EOF | tee ansible.cfg
 [defaults]
@@ -287,7 +289,26 @@ ansible-playbook -i hosts.txt playbook.yml
     # 2- copy & paste K8s_init.sh to remote home directory
     # 3- execute K8s_init.sh
 
-rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh
+}
+
+#  check if hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
+if [ -f hosts.txt ] && [ -f hosts ] && [ -f playbook.yml ] && [ -f k8s_init.sh ] && [ -f token.sh ]; then
+    # hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
+    # Do you want to continue with existing files? or start from scratch? (y/n)
+    read -p "Do you want to continue with existing files? (y/n) : " continue_with_existing_files
+    if [ $continue_with_existing_files == "y" ]; then
+        echo "continuing with existing files"
+        ansible-playbook -i hosts.txt playbook.yml
+    else
+        echo "starting from scratch"
+        rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh
+        check_exist
+    fi
+else
+    echo "starting from scratch"
+    rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh
+    check_exist
+fi
 
 echo "The Cluster is Now Ready 🥳 🥳"
 
