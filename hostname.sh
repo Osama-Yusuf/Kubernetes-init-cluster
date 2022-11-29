@@ -1,30 +1,98 @@
 #!/bin/bash
 
-# this script creates 5 files 
+# This script creates 6 files in the current directory after the script is executed it deletes them.
 # 1. hosts - contains the list of ip and hostname and to be copied to each node /etc/hosts with ansible playbook
 # 2. hosts.txt - contains the list of ip and credentials for ansible to ssh to each node
 # 3. ansible.cfg - contains rules for easier execution for ansible
 # 4. k8s_init.sh - contains the list of commands to be executed on all nodes to initialze the cluster
 # 5. playbook.yml - ansible playbook to to copy hosts file to each node and execute k8s_init.sh
+# 6. token.sh - contains the command to get the token to join the cluster created by kubeadm init from master node
 
-read -p "Do you want to provision ec2's (Y/N): " user_name
-
+# ---------------------- provision ec2's with terraform -------------------------------------------- #
 terra(){
-  # check if terraform is initialized
   cd terraform
+  # --------------------------------- Key Pair --------------------------------- #
+  # check if there's a key pair in the region if not it creates one 
+  aws ec2 describe-key-pairs --region eu-central-1 --query 'KeyPairs[*].KeyName' >/dev/null || aws ec2 create-key-pair --key-name $USER-key --region eu-central-1 --query 'KeyMaterial' --output text > $USER-key.pem 
+
+  # check if there's any key pair in the same directory
+  if ( ! ls | grep ".pem" >/dev/null); then
+      echo "There's a key pair in current region, Please copy the key.pem to the current directory"
+      exit 1
+  fi
+  # ---------------------------------------------------------------------------- #
+
+  # ------------------------------- creates vars ------------------------------- #
+  vpc_id=$(aws ec2 describe-vpcs --region eu-central-1 --query 'Vpcs[*].VpcId' | grep "vpc-" | sed 's/ //g')
+  vpc_sg_id=$(aws ec2 describe-security-groups --region eu-central-1 --query 'SecurityGroups[*].GroupId' | grep "sg-" | sed 's/ //g')
+  key_pair="\"$(ls | grep ".pem" | sed "s/.pem//")\""
+  ubuntu_ami=$(aws ec2 describe-images --region eu-central-1 --owners 099720109477 --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*" --query 'Images[*].ImageId' | grep "ami-" | sed 's/ //g' | sort -u | awk 'NR==20' | sed 's/,//g')
+  # ubuntu_ami=$(aws ec2 describe-images --region eu-central-1 --owners 099720109477 --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-*" --query 'Images[*].ImageId' | grep "ami-" | sed 's/ //g' | sed 's/"//g')
+  # ubuntu_ami="\"$(aws ec2 describe-images --region eu-central-1 --owners 099720109477 --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-focal-20.04-arm64-server-*" --query 'sort_by(Images, &CreationDate)[-1].ImageId' --output text)\""
+  # ---------------------------------------------------------------------------- #
+
+  # if you've added a variable to the script above make sure to delete the main.env file before running the script
+
+  # ------------ check if there's a .env file if not it creates one ------------ #
+  if ( ! ls | grep ".env" >/dev/null); then
+  cat <<EOF > main.env
+  export TF_VAR_vpc_id=$vpc_id
+  export TF_VAR_vpc_sg_id=$vpc_sg_id
+  export TF_VAR_key_pair=$key_pair
+  export TF_VAR_ubuntu_ami=$ubuntu_ami
+EOF
+  fi
+  # ---------------------------------------------------------------------------- #
+
+  # ------------- source .env file then execute terraform commands ------------- #
+  source main.env
+    # check if terraform is initialized
   if [ ! -d ".terraform" ]; then
       terraform init
   fi
+  # terraform refresh # ----- for checking output vars while testing
   terraform plan
   terraform apply -auto-approve
+  # ---------------------------------------------------------------------------- #
+
+  # --------------- getting the public ip address of all instance -------------- #
+  master_ip=$(terraform output master_public_ip)
+  worker1_ip=$(terraform output worker1_public_ip)
+  worker2_ip=$(terraform output worker2_public_ip)
+  echo
+  echo "master node ip is: $master_ip"
+  echo "worker1 node ip is: $worker1_ip"
+  echo "worker2 node ip is: $worker2_ip"
+  # ---------------------------------------------------------------------------- #
   cd ..
 }
+# -------------------------------------------------------------------------------------------------- #
 
-if [ $user_name == "Y" ]; then
+# read -p "Do you want to provision ec2's (Y/N): " answer
+# if [ $answer == "Y" ]; then
+  # terra
+# fi
+if [ $# -eq 0 ]; then
+    echo
+    # echo "No argument supplied"
+elif [ $1 == '-y' ]; then
+  echo
   terra
+else 
+  echo
 fi
 
+# check for -y argument  
+# if [ $1 == "-y" ]; then
+  # echo "provisioning ec2's"
+  # terra
+# fi
+
+# 
+
 check_exist(){
+
+user_name="ubuntu"
 
 # -------------- contains rules for easier execution for ansible ------------- #
 cat <<EOF | tee ansible.cfg
@@ -33,28 +101,6 @@ host_key_checking = false
 allow_world_readable_tmpfiles = True
 pipelining = True
 EOF
-
-# ------------------ print default hosts file to append upon ----------------- #
-cat <<EOF | tee hosts
-127.0.0.1 localhost
-
-# The following lines are desirable for IPv6 capable hosts
-::1 ip6-localhost ip6-loopback
-fe00::0 ip6-localnet
-ff00::0 ip6-mcastprefix
-ff02::1 ip6-allnodes
-ff02::2 ip6-allrouters
-ff02::3 ip6-allhosts
-
-EOF
-
-# ------ print inital hosts.txt file to appen upon for ansible playbook ------ #
-cat <<EOF | tee hosts.txt
-[all]
-EOF
-
-clear
-read -p "Please enter the username of all nodes (for Ex. 'ubuntu'): " user_name
 
 # ---------------------------------------------------------------------------- # k8s_init.sh # ---------------------------------------------------------------------------- #
 
@@ -94,7 +140,7 @@ sudo containerd config default | sudo tee /etc/containerd/config.toml
 sudo systemctl restart containerd
 
 # add current user to docker group in order to run docker without sudo
-# sudo usermod -aG docker $user_name
+# sudo usermod -aG docker $USER
 # logout and login again to apply changes
 # newgrp docker
 
@@ -122,78 +168,175 @@ sudo apt-mark hold kubelet kubeadm kubectl
 echo 1 > /proc/sys/net/ipv4/ip_forward
 
 EOT
-
 # ---------------------------------------------------------------------------- # k8s_init.sh # ---------------------------------------------------------------------------- #
-
-clear
 chmod +x k8s_init.sh 
 
-# ------------- complete the hosts.txt file for ansible playbook ------------- #
-read -p "Please enter the path to the private key (.pem file): " private_key_path
+no_terra(){
+  # ------------------ print default hosts file to append upon ----------------- #
+  cat <<EOF | tee hosts
+  127.0.0.1 localhost
 
-# ------ get the number of nodes then loop through them to get their private ip and hostname ------ #
-    # then append them to hosts.txt file
-    # then ssh to each node and set their hostname
-read -p "Please enter the number of all your nodes (worker and master) : " node_number
-echo 
+  # The following lines are desirable for IPv6 capable hosts
+  ::1 ip6-localhost ip6-loopback
+  fe00::0 ip6-localnet
+  ff00::0 ip6-mcastprefix
+  ff02::1 ip6-allnodes
+  ff02::2 ip6-allrouters
+  ff02::3 ip6-allhosts
 
-# ----------- create a for loop to add all nodes to /etc/hosts file ---------- #
-for (( i=1 ; i<=$node_number ; i++ )); 
-do
-    read -p "Please enter the public ip of node $i : " node_public_ip
-    read -p "Please enter the hostname of node $i : " node_hostname
-    # ----------------- temporary comment the following line ----------------- #
-    scp -i $private_key_path k8s_init.sh $user_name@$node_public_ip:~/
-    echo "$node_public_ip $node_hostname" >> hosts
-    echo "$node_public_ip" >> hosts.txt
-    # ----------------- temporary comment the following 3 lines ----------------- #
-    ssh -i $private_key_path $user_name@$node_public_ip << EOF
-    sudo hostnamectl set-hostname $node_hostname
 EOF
-    clear
-    echo "done"
-    echo
-done
 
+  # ------ print inital hosts.txt file to appen upon for ansible playbook ------ #
+  cat <<EOF | tee hosts.txt
+  [all]
+EOF
 
-# ------------- complete the hosts.txt file for ansible playbook ------------- #
-tee -a hosts.txt > /dev/null <<EOT
+  clear
 
-[all:vars]
-ansible_ssh_private_key_file=$private_key_path
-ansible_user=$user_name
+  read -p "Please enter the path to the private key (.pem file): " private_key_path
+
+  # ------ get the number of nodes then loop through them to get their private ip and hostname ------ #
+      # then append them to hosts.txt file
+      # then ssh to each node and set their hostname
+  read -p "Please enter the number of all your nodes (worker and master) : " node_number
+  echo 
+
+  # ----------- create a for loop to add all nodes to /etc/hosts file ---------- #
+  for (( i=1 ; i<=$node_number ; i++ )); 
+  do
+      read -p "Please enter the public ip of node $i : " node_public_ip
+      read -p "Please enter the hostname of node $i : " node_hostname
+      # ----------------- temporary comment the following line ----------------- #
+      scp -i $private_key_path k8s_init.sh $user_name@$node_public_ip:~/
+      echo "$node_public_ip $node_hostname" >> hosts
+      echo "$node_public_ip" >> hosts.txt
+      # ----------------- temporary comment the following 3 lines ----------------- #
+      ssh -i $private_key_path $user_name@$node_public_ip << EOF
+      sudo hostnamectl set-hostname $node_hostname
+EOF
+      clear
+      echo "done"
+      echo
+  done
+
+  # ------------- complete the hosts.txt file for ansible playbook ------------- #
+  tee -a hosts.txt > /dev/null <<EOT
+
+  [all:vars]
+  ansible_ssh_private_key_file=$private_key_path
+  ansible_user=$user_name
+
+EOT
+
+  # -------------------------------- master ips -------------------------------- #
+  tee -a hosts.txt > /dev/null <<EOT
+  [master]
+EOT
+
+  cat hosts | grep master | awk '{print $1}' >> hosts.txt
+
+  tee -a hosts.txt > /dev/null <<EOT
+
+  [master:vars]
+  ansible_ssh_private_key_file=$private_key_path
+  ansible_user=$user_name
 
 EOT
 
-# -------------------------------- master ips -------------------------------- #
-tee -a hosts.txt > /dev/null <<EOT
-[master]
+  # -------------------------------- worker ips -------------------------------- #
+  tee -a hosts.txt > /dev/null <<EOT
+  [worker]
 EOT
 
-cat hosts | grep master | awk '{print $1}' >> hosts.txt
+  cat hosts | grep worker | awk '{print $1}' >> hosts.txt
 
-tee -a hosts.txt > /dev/null <<EOT
+  tee -a hosts.txt > /dev/null <<EOT
 
-[master:vars]
-ansible_ssh_private_key_file=$private_key_path
-ansible_user=$user_name
-
-EOT
-
-# -------------------------------- worker ips -------------------------------- #
-tee -a hosts.txt > /dev/null <<EOT
-[worker]
-EOT
-
-cat hosts | grep worker | awk '{print $1}' >> hosts.txt
-
-tee -a hosts.txt > /dev/null <<EOT
-
-[worker:vars]
-ansible_ssh_private_key_file=$private_key_path
-ansible_user=$user_name
+  [worker:vars]
+  ansible_ssh_private_key_file=$private_key_path
+  ansible_user=$user_name
 
 EOT
+}
+
+with_terra(){
+  key_pair=$(echo $key_pair | tr -d '"')
+  private_key_path="terraform/$key_pair.pem"
+
+# make master and worker1 and worker2 without double quotes
+  master_ip=$(echo $master_ip | tr -d '"')
+  worker1_ip=$(echo $worker1_ip | tr -d '"')
+  worker2_ip=$(echo $worker2_ip | tr -d '"')
+
+  cat <<EOF | tee hosts
+  127.0.0.1 localhost
+
+  # The following lines are desirable for IPv6 capable hosts
+  ::1 ip6-localhost ip6-loopback
+  fe00::0 ip6-localnet
+  ff00::0 ip6-mcastprefix
+  ff02::1 ip6-allnodes
+  ff02::2 ip6-allrouters
+  ff02::3 ip6-allhosts
+
+  $master_ip master
+  $worker1_ip worker1
+  $worker2_ip worker2
+
+EOF
+  
+  cat <<EOF | tee hosts.txt
+  [all]
+  $master_ip
+  $worker1_ip
+  $worker2_ip
+
+  [all:vars]
+  ansible_ssh_private_key_file=$private_key_path
+  ansible_user=$user_name
+
+  [master]
+  $master_ip
+
+  [master:vars]
+  ansible_ssh_private_key_file=$private_key_path
+  ansible_user=$user_name
+
+  [worker]
+  $worker1_ip
+  $worker2_ip
+
+  [worker:vars]
+  ansible_ssh_private_key_file=$private_key_path
+  ansible_user=$user_name
+EOF
+
+clear
+
+# ---------------------------------------------------------------------------- #
+  # for loop into each node to set their hostname by these vars master_ip, worker1_ip, worker2_ip
+  # then append them to hosts.txt file
+  # then ssh to each node and set their hostname
+  ips=("$master_ip" "$worker1_ip" "$worker2_ip")
+  nodes=("master" "worker1" "worker2")
+  for (( i=0 ; i<${#ips[@]} ; i++ ));
+  do
+    scp -i $private_key_path k8s_init.sh $user_name@${ips[$i]}:~/
+    ssh -i $private_key_path $user_name@${ips[$i]}  <<  EOF
+    sudo hostnamectl set-hostname ${nodes[$i]}
+EOF
+  done
+# ---------------------------------------------------------------------------- #
+}
+
+# check if master_ip has value
+if [ -z "$master_ip" ]; then
+  echo "master_ip is empty"
+  no_terra
+else
+  echo "master_ip is not empty"
+  with_terra
+fi
 
 
 # ------------------------ print out the playbook.yml ------------------------ #
@@ -290,12 +433,22 @@ ansible-playbook -i hosts.txt playbook.yml
     # 3- execute K8s_init.sh
 
 }
+# ------------------ for checking on exsiting vars with arg ------------------ #
+# if [ $# -eq 0 ]; then
+    # echo
+    # echo "No argument supplied"
+# elif [ $1 == '-y' ]; then
+  # echo "-l"
+  # terra
+# else 
+  # echo
+# fi
 
 #  check if hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
-if [ -f hosts.txt ] && [ -f hosts ] && [ -f playbook.yml ] && [ -f k8s_init.sh ] && [ -f token.sh ]; then
+if [ -f hosts.txt ] && [ -f hosts ] || [ -f playbook.yml ] || [ -f k8s_init.sh ] || [ -f token.sh ]; then
     # hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
     # Do you want to continue with existing files? or start from scratch? (y/n)
-    read -p "Do you want to continue with existing files? (y/n) : " continue_with_existing_files
+    read -p "Do you want to continue with existing files? (y/n): " continue_with_existing_files
     if [ $continue_with_existing_files == "y" ]; then
         echo "continuing with existing files"
         ansible-playbook -i hosts.txt playbook.yml

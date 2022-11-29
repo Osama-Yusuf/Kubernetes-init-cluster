@@ -1,6 +1,6 @@
+# enter providor in frankfurt
 provider "aws" {
-  # region = "eu-central-1"
-  region = "eu-west-2"
+  region = "eu-central-1"
 }
 
 module "ec2_instance" {
@@ -9,14 +9,13 @@ module "ec2_instance" {
 
   for_each = toset(["master", "worker1", "worker2"])
 
-#   name = ${each.key}
   name = "k8s-${each.key}"
 
-  ami                    = "ami-04842bc62789b682e"
+  ami                    = var.ubuntu_ami
   instance_type          = "t2.medium"
-  key_name               = "k8s"
+  key_name               = var.key_pair
   monitoring             = true
-  vpc_security_group_ids = ["sg-0e2dbd9064902a423"]
+  vpc_security_group_ids = [var.vpc_sg_id]
   
   # change storage size to 20GB
   root_block_device = [
