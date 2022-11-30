@@ -1,10 +1,10 @@
 # Kubernetes init cluster
 ## Initialize k8s cluster with bash, ansible, AWS, & terraform
-## first it provisions the infra using terraform
-## then it initializes the cluster using bash script & ansible playbooks by:
-- ## creating inventory file and hosts file to be copied to all nodes in the cluster 
-- ## and install & initialize kubeadm & kubectl with k8s_init.sh script also copied to all nodes and then executed using ansible playbook
-## Usage:
+### first it provisions the infra using terraform
+### then it initializes the cluster using bash script & ansible playbooks by:
+- ### creating inventory file and hosts file to be copied to all nodes in the cluster 
+- ### and install & initialize kubeadm & kubectl with k8s_init.sh script also copied to all nodes and then executed using ansible playbook
+### Usage:
 ```
 ./hostname.sh [OPTION]
    -y  Provision infra with terraform, else you will be prompted for ips, keys, etc.
