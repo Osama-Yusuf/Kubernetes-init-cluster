@@ -17,7 +17,7 @@ terra(){
 
   # check if there's any key pair in the same directory
   if ( ! ls | grep ".pem" >/dev/null); then
-      echo "There's a key pair in current region, Please copy the key.pem to the current directory"
+      echo "There's a key pair in current region, Please copy the key.pem to terraform directory"
       exit 1
   fi
   # ---------------------------------------------------------------------------- #
@@ -72,6 +72,7 @@ EOF
 # if [ $answer == "Y" ]; then
   # terra
 # fi
+
 if [ $# -eq 0 ]; then
     echo
     # echo "No argument supplied"
@@ -81,14 +82,6 @@ elif [ $1 == '-y' ]; then
 else 
   echo
 fi
-
-# check for -y argument  
-# if [ $1 == "-y" ]; then
-  # echo "provisioning ec2's"
-  # terra
-# fi
-
-# 
 
 check_exist(){
 
@@ -207,11 +200,11 @@ EOF
       read -p "Please enter the public ip of node $i : " node_public_ip
       read -p "Please enter the hostname of node $i : " node_hostname
       # ----------------- temporary comment the following line ----------------- #
-      scp -i $private_key_path k8s_init.sh $user_name@$node_public_ip:~/
+      scp -o StrictHostKeyChecking=no -i $private_key_path k8s_init.sh $user_name@$node_public_ip:~/
       echo "$node_public_ip $node_hostname" >> hosts
       echo "$node_public_ip" >> hosts.txt
       # ----------------- temporary comment the following 3 lines ----------------- #
-      ssh -i $private_key_path $user_name@$node_public_ip << EOF
+      ssh -o StrictHostKeyChecking=no -i $private_key_path $user_name@$node_public_ip << EOF
       sudo hostnamectl set-hostname $node_hostname
 EOF
       clear
@@ -312,6 +305,8 @@ EOF
 EOF
 
 clear
+echo "initializing kubernetes cluster"
+sleep 7
 
 # ---------------------------------------------------------------------------- #
   # for loop into each node to set their hostname by these vars master_ip, worker1_ip, worker2_ip
@@ -321,8 +316,8 @@ clear
   nodes=("master" "worker1" "worker2")
   for (( i=0 ; i<${#ips[@]} ; i++ ));
   do
-    scp -i $private_key_path k8s_init.sh $user_name@${ips[$i]}:~/
-    ssh -i $private_key_path $user_name@${ips[$i]}  <<  EOF
+    scp -o StrictHostKeyChecking=no -i $private_key_path k8s_init.sh $user_name@${ips[$i]}:~/
+    ssh -o StrictHostKeyChecking=no -i $private_key_path $user_name@${ips[$i]}  <<  EOF
     sudo hostnamectl set-hostname ${nodes[$i]}
 EOF
   done
@@ -434,29 +429,26 @@ ansible-playbook -i hosts.txt playbook.yml
 
 }
 # ------------------ for checking on exsiting vars with arg ------------------ #
-# if [ $# -eq 0 ]; then
-    # echo
-    # echo "No argument supplied"
-# elif [ $1 == '-y' ]; then
-  # echo "-l"
-  # terra
-# else 
-  # echo
-# fi
 
 #  check if hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
 if [ -f hosts.txt ] && [ -f hosts ] || [ -f playbook.yml ] || [ -f k8s_init.sh ] || [ -f token.sh ]; then
-    # hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
-    # Do you want to continue with existing files? or start from scratch? (y/n)
-    read -p "Do you want to continue with existing files? (y/n): " continue_with_existing_files
-    if [ $continue_with_existing_files == "y" ]; then
-        echo "continuing with existing files"
-        ansible-playbook -i hosts.txt playbook.yml
-    else
-        echo "starting from scratch"
-        rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh
-        check_exist
-    fi
+  # check if hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
+  # then check if arg is -d if so delete all files and start from scratch
+  if [ $# -eq 0 ]; then
+    echo
+    # echo "No argument supplied"
+    # echo "Continueing with existing files"
+  elif [ $2 == '-d' ]; then
+    # terra
+    echo "starting from scratch"
+    rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh
+    check_exist
+  else 
+    echo
+    # echo "Continueing with existing files"
+    ansible-playbook -i hosts.txt playbook.yml
+  fi
+
 else
     echo "starting from scratch"
     rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh
@@ -464,6 +456,11 @@ else
 fi
 
 echo "The Cluster is Now Ready 🥳 🥳"
+echo
+echo "Now ssh into the master node to check the cluster status"
+sleep 
+echo
+ssh -o StrictHostKeyChecking=no -i $private_key_path $user_name@$master_ip
 
 # ------------ The following script is to get the cluster config_file from master to local. ------------ #
 # master_ip=$(cat hosts | grep master | awk '{print $1}' | head -n 1)

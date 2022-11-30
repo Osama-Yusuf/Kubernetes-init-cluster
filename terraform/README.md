@@ -21,4 +21,5 @@ volume size "20GB"
 ### make sure to check if the security group allows ssh from your ip address
 ### make sure to check if the key pair is in the same directory as the terraform files
 ### if there's a key in the region that is not yours and the script want you to copy it create another one with cli from the hostname script and copy it in terraform directory
+### when you destroy the infra using 'terraform destroy' it will pop up a msg of empy vars, just press enter to continue 
     
