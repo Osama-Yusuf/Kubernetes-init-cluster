@@ -76,7 +76,7 @@ EOF
 if [ $# -eq 0 ]; then
     echo
     # echo "No argument supplied"
-elif [ $1 == '-y' ]; then
+elif [ $1 == '-y' ] || [ $2 == '-y' ]; then
   echo
   terra
 else 
@@ -431,17 +431,18 @@ ansible-playbook -i hosts.txt playbook.yml
 # ------------------ for checking on exsiting vars with arg ------------------ #
 
 #  check if hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
-if [ -f hosts.txt ] && [ -f hosts ] || [ -f playbook.yml ] || [ -f k8s_init.sh ] || [ -f token.sh ]; then
+if [ -f hosts.txt ] && [ -f hosts ] && [ -f terraform/main.env ] || [ -f playbook.yml ] || [ -f k8s_init.sh ] || [ -f token.sh ]; then
   # check if hosts.txt & hosts & playbook.yml & k8s_init.sh & token.sh exist
+    # but most importantly check if hosts.txt, hosts, & terraform/main.env exist
   # then check if arg is -d if so delete all files and start from scratch
   if [ $# -eq 0 ]; then
     echo
     # echo "No argument supplied"
     # echo "Continueing with existing files"
-  elif [ $2 == '-d' ]; then
+  elif [ $1 == '-d' ] || [ $2 == '-d' ]; then
     # terra
     echo "starting from scratch"
-    rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh
+    rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh terraform/main.env
     check_exist
   else 
     echo
@@ -455,12 +456,14 @@ else
     check_exist
 fi
 
+# if there's any issues with ansible or want to chech the playbook output for longer remove the below command(clear)
+clear
 echo "The Cluster is Now Ready 🥳 🥳"
 echo
 echo "Now ssh into the master node to check the cluster status"
-sleep 
+sleep 2
 echo
-ssh -o StrictHostKeyChecking=no -i $private_key_path $user_name@$master_ip
+ssh -i $private_key_path $user_name@$master_ip
 
 # ------------ The following script is to get the cluster config_file from master to local. ------------ #
 # master_ip=$(cat hosts | grep master | awk '{print $1}' | head -n 1)
