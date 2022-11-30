@@ -23,5 +23,5 @@ Example: ./hostname.sh -y -d
 - #### then it copies the token to the worker nodes and executes it
 - #### after that the playbook apply the calico network plugin
 
-## After execution 3 instances will be up & running on aws (master, worker1, & worker2) initialized with kubeadm & kubectl 
-## Then it will ssh into master node for you to start working/studying k8s
+### After execution 3 instances will be up & running on aws (master, worker1, & worker2) initialized with kubeadm & kubectl 
+### Then it will ssh into master node for you to start working/studying k8s
