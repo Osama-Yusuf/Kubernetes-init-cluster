@@ -75,7 +75,7 @@ Example: ./hostname.sh -y -d
 
 ---
 
-## Donations
+## Support
 
  If you want to support this project, please consider donating:
  * PayPal: https://paypal.me/OsamaYusuf
