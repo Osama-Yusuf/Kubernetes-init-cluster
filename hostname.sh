@@ -442,7 +442,7 @@ if [ -f hosts.txt ] && [ -f hosts ] && [ -f terraform/main.env ] || [ -f playboo
   elif [ $1 == '-d' ] || [ $2 == '-d' ]; then
     # terra
     echo "starting from scratch"
-    rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh terraform/main.env
+    rm -f hosts hosts.txt ansible.cfg playbook.yml k8s_init.sh token.sh terraform/main.env terraform/.terraform terraform/.terraform.lock.hcl terraform/terraform.tfstate terraform/terraform.tfstate.backup terraform/terraform.tfvars
     check_exist
   else 
     echo
