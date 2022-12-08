@@ -88,5 +88,5 @@ Example: ./hostname.sh -y -d
 * `Thanks for reading`
 
 -------
-##### Report bugs for "Git-Repo-Pusher"
+##### Report bugs for "Kubernetes-Init-Cluster"
 * `osama9mohamed5@gmail.com`
