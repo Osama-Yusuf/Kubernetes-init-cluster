@@ -1,12 +1,12 @@
-variable "vpc_id" {
-  description = "Optionally say something about this variable"
-}
-variable "vpc_sg_id" {
-  description = "Optionally say something about this variable"
-}
-variable "key_pair" {
-  description = "Optionally say something about this variable"
-}
 variable "ubuntu_ami" {
-  description = "Optionally say something about this variable"
+  description = "ubuntu-22.04 distro machine image in eu-central-1"
+  default     = "ami-0faab6bdbac9486fb"
+}
+variable "ssh_key_name" {
+  description = "aws private key name"
+  default     = "KEY_NAME"
+}
+variable "region" {
+  description = "the desired region"
+  default = "eu-central-1"
 }

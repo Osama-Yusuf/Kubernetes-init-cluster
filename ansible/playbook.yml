@@ -1,0 +1,98 @@
+- name: Initialize Kubernetes Cluster
+  hosts: all
+  become: true
+  become_method: sudo
+  become_user: root
+  vars:
+    ansible_user: "{{ ansible_user }}"
+    ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
+
+  tasks:
+  - name: Transfer the hosts file to /etc/hosts on all nodes
+    copy:
+      src: ../nodes_config/etc_hosts.txt
+      dest: /etc/hosts
+      owner: root
+      group: root
+      mode: u=rw,g=r,o=r
+      backup: yes
+
+- name: Setup Kubernetes Master
+  hosts: master
+  become: true
+  vars:
+    ansible_user: "{{ ansible_user }}"
+    ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
+  tasks:
+  - name: Transfer the kubeadm config to master node
+    copy:
+      src: ../nodes_config/kubeadm-config.yaml
+      dest: /home/{{ ansible_user }}/kubeadm-config.yaml
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: u=rwx,g=rx,o=rx
+      backup: yes
+
+  - name: Initialize master and create kubeadm token
+    shell: |
+      sudo kubeadm init --pod-network-cidr 192.168.0.0/16 --kubernetes-version v1.24.0
+      mkdir -p /home/{{ ansible_user }}/.kube
+      sudo cp -f /etc/kubernetes/admin.conf /home/{{ ansible_user }}/.kube/config
+      sudo chown $(id -u):$(id -g ) /home/{{ ansible_user }}/.kube/config
+      sudo chown -R {{ ansible_user }}:{{ ansible_user }} /home/{{ ansible_user }}/.kube
+      sudo kubeadm token create --print-join-command > /home/{{ ansible_user }}/token.sh
+      sudo chown {{ ansible_user }}:{{ ansible_user }} /home/{{ ansible_user }}/token.sh
+      echo "Add port 6443 to the security group of the master node (if using AWS instance)"
+      # rm -f k8s_init.sh
+
+  - name: Wait for Kubernetes control plane to become ready
+    shell: sleep 30
+    args:
+      executable: /bin/bash
+
+  - name: Fetch token.sh from master node
+    fetch:
+      src: /home/{{ ansible_user }}/token.sh
+      dest: token.sh
+      flat: yes
+      mode: u=rwx,g=rx,o=rx
+
+  # - name: Initialize calico 1st time
+  #   shell: |
+  #     kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+  #     kubectl apply -f https://docs.projectcalico.org/v3.22/manifests/calico.yaml
+
+- name: Apply Network Policies on Master
+  hosts: master
+  become: true
+  become_user: ubuntu
+  tasks:
+  - name: Apply Calico network policies
+    shell: kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+
+- name: Setup Kubernetes Workers
+  hosts: worker
+  become: true
+  vars:
+    ansible_user: "{{ ansible_user }}"
+    ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
+  tasks:
+  - name: Transfer the token to all worker nodes
+    copy:
+      src: token.sh
+      dest: /home/{{ ansible_user }}/token.sh
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+      mode: u=rwx,g=rx,o=rx
+      backup: yes
+
+  - name: Execute the token on worker nodes
+    command: bash /home/{{ ansible_user }}/token.sh && rm -f /home/{{ ansible_user }}/token.sh
+
+- name: Apply Network Policies on Master
+  hosts: master
+  become: true
+  become_user: ubuntu
+  tasks:
+  - name: Apply Calico network policies
+    shell: kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml

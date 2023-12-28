@@ -1,0 +1,45 @@
+        sudo kubeadm init --pod-network-cidr 192.168.0.0/16 --kubernetes-version v1.29.0
+
+
+MASTER_IP master
+WORKER_01_IP worker1
+WORKER_02_IP worker2
+
+[all]
+MASTER_IP
+WORKER_01_IP
+WORKER_02_IP
+
+[master]
+MASTER_IP
+
+[worker]
+WORKER_01_IP
+WORKER_02_IP
+
+todo:
+instead of asking users with inputs take the ips($node_public_ip) from the inventory.ini
+  private_key_path=$(echo $PWD/terraform)
+
+  # ------ get the number of nodes then loop through them to get their private ip and hostname ------ #
+      # then append them to hosts.txt file
+      # then ssh to each node and set their hostname
+  awk '/^\[all\]/ {flag=1; next} /^\[/ && !/^\[all\]/ {flag=0} flag && NF' ../inventory.ini | wc -l
+
+  # ----------- create a for loop to add all nodes to /etc/hosts file ---------- #
+  for (( i=1 ; i<=$node_number ; i++ )); 
+  do
+      read -p "Please enter the public ip of node $i : " node_public_ip
+      read -p "Please enter the hostname of node $i : " node_hostname
+      # ----------------- temporary comment the following line ----------------- #
+      scp -o StrictHostKeyChecking=no -i $private_key_path k8s_init.sh USER_NAME@$node_public_ip:~/
+      echo "$node_public_ip $node_hostname" >> hosts
+      echo "$node_public_ip" >> hosts.txt
+      # ----------------- temporary comment the following 3 lines ----------------- #
+      ssh -o StrictHostKeyChecking=no -i $private_key_path USER_NAME@$node_public_ip << EOF
+      sudo hostnamectl set-hostname $node_hostname
+EOF
+      clear
+      echo "done"
+      echo
+  done
