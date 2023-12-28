@@ -43,3 +43,22 @@ EOF
       echo "done"
       echo
   done
+
+$key_name.pem
+$user_name
+
+for i in $(kubectl get pods -A | grep -vi running | grep -vi name); do ns=$(kubectl get pods -A | grep -vi running | grep -vi name | awk '{print $1}'); pod=$(kubectl get pods -A | grep -vi running | grep -vi name | awk '{print $2}'); kubectl delete pod $pod -n $ns; done
+
+ansible-playbook -v -i ansible/inventory.ini ansible/playbook.yml -e "ansible_user=ubuntu" -e "ansible_ssh_private_key_file=ansible/my_key.pem"
+
+sudo apt-get update && sudo apt-get install -y kubelet=1.27.0-00 kubeadm=1.27.0-00 kubectl=1.27.0-00
+
+sudo kubeadm init --pod-network-cidr 192.168.0.0/16 --kubernetes-version v1.24.0
+
+sudo kubeadm reset 
+sudo kubeadm init --config kubeadm-config.yaml
+sudo cp -if /etc/kubernetes/admin.conf $HOME/.kube/config && sudo chown -R ubuntu:ubuntu .kube/ && sudo chown $(id -u):$(id -g ) .kube/
+
+
+kubectl logs coredns-76f75df574-22wg4 -n kube-system
+kubectl logs kube-controller-manager-master -n kube-system
