@@ -90,3 +90,4 @@ Example: ./hostname.sh -y -d
 -------
 ##### Report bugs for "Kubernetes-Init-Cluster"
 * `osama9mohamed5@gmail.com`
+This project is tested with BrowserStack
